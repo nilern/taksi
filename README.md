@@ -1,10 +1,13 @@
-# taksi
+# Taksi
 
-A Clojure library designed to ... well, that part is up to you.
+> Daniel Morales: 'Oh my, they're gone!' Let me ask you a question: Do your interrogations always end up like this,
+> or are you just trying to impress me?
+>
+> Émilien Coutant-Kerbalec: But no! I usually get to ask at least one question.
+>
+> -- Taxi (1998)
 
-## Usage
-
-FIXME
+Proper Async monad for Clojure, because [Promises are bad](https://medium.com/@avaq/broken-promises-2ae92780f33).
 
 ## License
 
