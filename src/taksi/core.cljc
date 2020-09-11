@@ -1,5 +1,6 @@
 (ns taksi.core
-  "Async monad that is actually a monad and does not run implicitly.")
+  "Async monad that is actually a monad and does not run implicitly."
+  (:refer-clojure :exclude [map]))
 
 (declare fork)
 
@@ -25,7 +26,7 @@
   [err]
   (Task. (fn [reject _] (reject err) (fn [] nil))))
 
-(defn transform
+(defn map
   "Map `f` over the resolution value of the task `t`."
   [f t]
   (Task. (fn [reject resolve] (fork reject (comp resolve f) t))))
