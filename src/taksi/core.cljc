@@ -16,7 +16,7 @@
 
   nil
   (task? [_] false)
-  (-fork [self _] (assert false "-fork called on nil")))
+  (-fork [self _ _] (assert false "-fork called on nil")))
 
 (declare ->FMap1 ->FMap2 ->FMap3 ->FMap4 ->FMapN ->Bind)
 

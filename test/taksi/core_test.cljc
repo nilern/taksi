@@ -73,3 +73,7 @@
       (is (t/task? t))
       (is (= (fork-resolving t) 5)))))
 
+(deftest test-non-tasks
+  (is (not (t/task? "foo")))
+  (is (not (t/task? nil))))
+
