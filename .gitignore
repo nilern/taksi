@@ -1,6 +1,7 @@
 /target
 /classes
 /checkouts
+.cpcache
 profiles.clj
 pom.xml
 pom.xml.asc
@@ -12,3 +13,4 @@ pom.xml.asc
 .hg/
 .idea/
 *.iml
+
