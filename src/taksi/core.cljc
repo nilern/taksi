@@ -6,17 +6,17 @@
 
 (defprotocol Task
   (task? [self])
-  (-fork [self reject resolve]))
+  (-fork [self ctx reject resolve]))
 
 (extend-protocol Task
   #?(:clj Object, :cljs default)
   (task? [_] false)
-  (-fork [self _ _]
+  (-fork [self _ _ _]
     (assert false (str "-fork called on non-Task value " self)))
 
   nil
   (task? [_] false)
-  (-fork [self _ _] (assert false "-fork called on nil")))
+  (-fork [self _ _ _] (assert false "-fork called on nil")))
 
 (declare ->FMap1 ->FMap2 ->FMap3 ->FMap4 ->FMapN ->Bind)
 
@@ -25,73 +25,80 @@
     (deftasktype FromPromise [get-promise]
       Task
       (task? [_] true)
-      (-fork [_ reject resolve]
+      (-fork [_ _ reject resolve]
         (-> (get-promise) (.then resolve) (.catch reject))))
 
     (def promise->task ->FromPromise)))
 
+(deftasktype GetContext []
+  Task
+  (task? [_] true)
+  (-fork [_ ctx _ resolve] (resolve ctx)))
+
+(def get-context (->GetContext))
+
 (deftasktype Bind [mv f]
   Task
   (task? [_] true)
-  (-fork [_ reject resolve]
-    (-fork mv reject (fn [a] (-fork (f a) reject resolve)))))
+  (-fork [_ ctx reject resolve]
+    (-fork mv ctx reject (fn [a] (-fork (f a) ctx reject resolve)))))
 
 (deftasktype FMap1 [f a]
   Task
   (task? [_] true)
-  (-fork [_ reject resolve]
-    (-fork a reject (fn [a] (resolve (f a))))))
+  (-fork [_ ctx reject resolve]
+    (-fork a ctx reject (fn [a] (resolve (f a))))))
 
 (deftasktype FMap2 [f a b]
   Task
   (task? [_] true)
-  (-fork [_ reject resolve]
-    (-fork a reject
-           (fn [a] (-fork b reject
+  (-fork [_ ctx reject resolve]
+    (-fork a ctx reject
+           (fn [a] (-fork b ctx reject
                           (fn [b] (resolve (f a b))))))))
 
 (deftasktype FMap3 [f a b c]
   Task
   (task? [_] true)
-  (-fork [_ reject resolve]
-    (-fork a reject
-           (fn [a] (-fork b reject
+  (-fork [_ ctx reject resolve]
+    (-fork a ctx reject
+           (fn [a] (-fork b ctx reject
                           (fn [b]
-                            (-fork c reject
+                            (-fork c ctx reject
                                    (fn [c] (resolve (f a b c))))))))))
 
 (deftasktype FMap4 [f a b c d]
   Task
   (task? [_] true)
-  (-fork [_ reject resolve]
-    (-fork a reject
-           (fn [a] (-fork b reject
+  (-fork [_ ctx reject resolve]
+    (-fork a ctx reject
+           (fn [a] (-fork b ctx reject
                           (fn [b]
-                            (-fork c reject
+                            (-fork c ctx reject
                                    (fn [c]
-                                     (-fork d reject
+                                     (-fork d ctx reject
                                             (fn [d] (resolve (f a b c d))))))))))))
 
 (deftasktype FMapN [f a b c d args]
   Task
   (task? [_] true)
-  (-fork [_ reject resolve]
-    (-fork a reject
-           (fn [a] (-fork b reject
+  (-fork [_ ctx reject resolve]
+    (-fork a ctx reject
+           (fn [a] (-fork b ctx reject
                           (fn [b]
-                            (-fork c reject
+                            (-fork c ctx reject
                                    (fn [c]
-                                     (-fork d reject
+                                     (-fork d ctx reject
                                             (fn [d]
                                               (-fork (apply m/fmap
                                                             (fn [& args] (apply f a b c d args))
                                                             args)
-                                                     reject resolve)))))))))))
+                                                     ctx reject resolve)))))))))))
 
 (deftype Rejected [e]
   Task
   (task? [_] true)
-  (-fork [_ reject _] (reject e))
+  (-fork [_ _ reject _] (reject e))
 
   m/Functor
   (-fmap [self _] self)
@@ -108,7 +115,7 @@
 (deftype Resolved [v]
   Task
   (task? [_] true)
-  (-fork [_ _ resolve] (resolve v))
+  (-fork [_ _ _ resolve] (resolve v))
 
   m/Functor
   (-fmap [_ f] (Resolved. (f v)))
@@ -126,5 +133,5 @@
 
 (defmethod m/pure Task [_ v] (Resolved. v))
 
-(defn fork [reject resolve t] (-fork t reject resolve))
+(defn fork [ctx reject resolve t] (-fork t ctx reject resolve))
 

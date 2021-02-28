@@ -6,12 +6,12 @@
 
 (defn- fork-resolving [t]
   (let [res (volatile! nil)]
-    (t/fork (constantly nil) #(vreset! res %) t)
+    (t/fork nil (constantly nil) #(vreset! res %) t)
     @res))
 
 (defn- fork-rejected [t]
   (let [res (volatile! nil)]
-    (t/fork #(vreset! res %) (constantly nil) t)
+    (t/fork nil #(vreset! res %) (constantly nil) t)
     @res))
 
 (deftest test-resolved
@@ -92,4 +92,12 @@
                       #(do (is (= % 5)) (done)))]
         (is (= true (t/task? t)))
         (fork-resolving t)))))
+
+(deftest test-context
+  (let [t t/get-context]
+    (is (= true (t/task? t)))
+    (is (= "con texto" (t/fork "con texto" (constantly nil) identity t)))
+
+    (testing "fmap"
+      (is (= 6 (t/fork 5 (constantly nil) identity (m/fmap inc t)))))))
 
