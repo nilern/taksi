@@ -2,6 +2,7 @@
 /classes
 /checkouts
 .cpcache
+/out
 profiles.clj
 pom.xml
 pom.xml.asc
@@ -9,8 +10,10 @@ pom.xml.asc
 *.class
 /.lein-*
 /.nrepl-port
+/.cljs_node_repl
 .hgignore
 .hg/
 .idea/
 *.iml
+/node_modules
 
