@@ -1,91 +1,120 @@
 (ns taksi.core
   "Async monad that is actually a monad and does not run implicitly."
-  (:refer-clojure :exclude [map]))
+  #?(:cljs (:require-macros [taksi.macros :refer [deftasktype]]))
+  (:require [monnit.core :as m]
+            #?(:clj [taksi.macros :refer [deftasktype]])))
 
-(declare fork)
-
-(defprotocol Fork
+(defprotocol Task
+  (task? [self])
   (-fork [self reject resolve]))
 
-(deftype Task [fork-self]
-  Fork
-  (-fork [_ reject resolve] (fork-self reject resolve)))
+(extend-protocol Task
+  #?(:clj Object, :cljs default)
+  (task? [_] false)
+  (-fork [self _ _]
+    (assert false (str "-fork called on non-Task value " self)))
 
-(def task
-  "Create a new task from a `(fn [reject resolve] ... cancel-thunk)`.
-  `cancel-thunk` must be an idempotent function of zero arguments."
-  ->Task)
+  nil
+  (task? [_] false)
+  (-fork [self _] (assert false "-fork called on nil")))
 
-(defn resolved
-  "Create a task that will immediately succeed with `v`."
-  [v]
-  (Task. (fn [_ resolve] (resolve v) (fn [] nil))))
+(declare ->FMap1 ->FMap2 ->FMap3 ->FMap4 ->FMapN ->Bind)
 
-(defn rejected
-  "Create a task that will immediately fail with `err`."
-  [err]
-  (Task. (fn [reject _] (reject err) (fn [] nil))))
+(deftasktype Bind [mv f]
+  Task
+  (task? [_] true)
+  (-fork [_ reject resolve]
+    (-fork mv reject (fn [a] (-fork (f a) reject resolve)))))
 
-(defn map
-  "Map `f` over the resolution value of the task `t`."
-  [f t]
-  (Task. (fn [reject resolve] (fork reject (comp resolve f) t))))
+(deftasktype FMap1 [f a]
+  Task
+  (task? [_] true)
+  (-fork [_ reject resolve]
+    (-fork a reject (fn [a] (resolve (f a))))))
 
-(defn then
-  "Create a task that will fork `t`
-  and then fork the result of calling `f` on its resolution value."
-  [t f]
-  (Task. (fn [reject resolve]
-           (let [cancel (volatile! nil)
-                 resolve* (fn [v] (vreset! cancel (fork reject resolve (f v))))]
-             (vreset! cancel (fork reject resolve* t))
-             (fn [] (@cancel))))))
+(deftasktype FMap2 [f a b]
+  Task
+  (task? [_] true)
+  (-fork [_ reject resolve]
+    (-fork a reject
+           (fn [a] (-fork b reject
+                          (fn [b] (resolve (f a b))))))))
 
-(defn- cas!
-  "Compare-and-swap; iff `@atom` is `old`, [[reset!]] it to `new`. Return `@atom`."
-  [atom old new]
-  (let [res (volatile! nil)]
-    (swap! atom (fn [v]
-                  (vreset! res v)
-                  (if (identical? v old) new v)))
-    @res))
+(deftasktype FMap3 [f a b c]
+  Task
+  (task? [_] true)
+  (-fork [_ reject resolve]
+    (-fork a reject
+           (fn [a] (-fork b reject
+                          (fn [b]
+                            (-fork c reject
+                                   (fn [c] (resolve (f a b c))))))))))
 
-;; FIXME: If we are to complect Error monad this should ignore rejections
-;;        until the last one, the one that leaves no task that can succeed.
-;; FIXME: Not sure if all the synchronization is correct (or necessary?).
-;; OPTIMIZE: Quite inefficient, portability came first.
-(defn select
-  "Create a task that will succeed or fail as soon as one of the tasks `ts` does with
-  the same value and cancel the other `ts` at that time."
-  [ts]
-  (Task. (fn [reject resolve]
-           (let [cancels (volatile! nil)
-                 cancel-others (fn [n]
-                                 (transduce (comp (map-indexed vector)
-                                                  (remove (fn [[i _]] (= i n))))
-                                            (completing (fn [_ [_ cancel]] (cancel)))
-                                            nil @cancels))
-                                                     
-                 rejector (atom reject)
-                 resolver (atom resolve)
-                 reject-nth (fn [i] (fn [err]
-                                      (when-let [do-reject (cas! rejector reject nil)]
-                                        (when (cas! resolver resolve nil)
-                                          (cancel-others i)
-                                          (do-reject err)))))
-                 resolve-nth (fn [i] (fn [v]
-                                       (when-let [do-resolve (cas! resolver resolve nil)]
-                                         (when (cas! rejector reject nil)
-                                           (cancel-others i)
-                                           (do-resolve v)))))]
-             (vreset! cancels (mapv (fn [i t] (fork (reject-nth i) (resolve-nth i) t))
-                                    (range)
-                                    ts))
-             (fn [] (run! (fn [cancel] (cancel)) @cancels))))))
+(deftasktype FMap4 [f a b c d]
+  Task
+  (task? [_] true)
+  (-fork [_ reject resolve]
+    (-fork a reject
+           (fn [a] (-fork b reject
+                          (fn [b]
+                            (-fork c reject
+                                   (fn [d]
+                                     (-fork d reject
+                                            (fn [d] (resolve (f a b c d))))))))))))
 
-(defn fork
-  "Run the task `t`, calling `resolve` on success and `reject` on failure.
-  Returns a thunk that can be called with no arguments to cancel the execution."
-  [reject resolve t]
-  (-fork t reject resolve))
+(deftasktype FMapN [f a b c d args]
+  Task
+  (task? [_] true)
+  (-fork [_ reject resolve]
+    (-fork a reject
+           (fn [a] (-fork b reject
+                          (fn [b]
+                            (-fork c reject
+                                   (fn [d]
+                                     (-fork d reject
+                                            (fn [d]
+                                              (-fork (apply m/fmap
+                                                            (fn [& args] (apply f a b c d args))
+                                                            args)
+                                                     reject resolve)))))))))))
+
+(deftype Rejected [e]
+  Task
+  (task? [_] true)
+  (-fork [_ reject _] (reject e))
+
+  m/Functor
+  (-fmap [self _] self)
+  (-fmap [self _ _] self)
+  (-fmap [self _ _ _] self)
+  (-fmap [self _ _ _ _] self)
+  (-fmap [self _ _ _ _ _] self)
+
+  m/Monad
+  (bind [self _] self))
+
+(def rejected ->Rejected)
+
+(deftype Resolved [v]
+  Task
+  (task? [_] true)
+  (-fork [_ _ resolve] (resolve v))
+
+  m/Functor
+  (-fmap [_ f] (Resolved. (f v)))
+  (-fmap [self f b] (->FMap2 f self b))
+  (-fmap [self f b c] (->FMap3 f self b c))
+  (-fmap [self f b c d] (->FMap4 f self b c d))
+  (-fmap [self f b c d args] (->FMapN f self b c d args))
+
+  m/Monad
+  (bind [_ f] (f v)))
+
+(def resolved ->Resolved)
+
+(def pure resolved)
+
+(defmethod m/pure Task [_ v] (Resolved. v))
+
+(defn fork [reject resolve t] (-fork t reject resolve))
 
