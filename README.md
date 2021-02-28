@@ -1,5 +1,7 @@
 # Taksi
 
+[![Build Status](https://img.shields.io/github/workflow/status/nilern/taksi/Run%20tests.svg)](https://github.com/nilern/taksi/actions)
+
 > Daniel Morales: 'Oh my, they're gone!' Let me ask you a question: Do your interrogations always end up like this,
 > or are you just trying to impress me?
 >
