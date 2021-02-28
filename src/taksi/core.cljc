@@ -20,6 +20,16 @@
 
 (declare ->FMap1 ->FMap2 ->FMap3 ->FMap4 ->FMapN ->Bind)
 
+#?(:cljs
+  (do 
+    (deftasktype FromPromise [get-promise]
+      Task
+      (task? [_] true)
+      (-fork [_ reject resolve]
+        (-> (get-promise) (.then resolve) (.catch reject))))
+
+    (def promise->task ->FromPromise)))
+
 (deftasktype Bind [mv f]
   Task
   (task? [_] true)
