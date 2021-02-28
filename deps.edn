@@ -1,5 +1,10 @@
 {:source-paths ["src"]
+
  :deps {org.clojure/clojure {:mvn/version "1.10.2", :scope "provided"}
         nilern/monnit {:git/url "https://github.com/nilern/monnit/"
-                       :sha "8ab724b8f68b3cf9c2e2c2268e1c4a7f005560c4"}}}
+                       :sha "8ab724b8f68b3cf9c2e2c2268e1c4a7f005560c4"}}
+
+ :aliases {:test {:extra-paths ["test"]
+                  :extra-deps {lambdaisland/kaocha {:mvn/version "1.0.732"}
+                               lambdaisland/kaocha-cljs {:mvn/version "0.0-71"}}}}}
 

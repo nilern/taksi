@@ -58,7 +58,7 @@
            (fn [a] (-fork b reject
                           (fn [b]
                             (-fork c reject
-                                   (fn [d]
+                                   (fn [c]
                                      (-fork d reject
                                             (fn [d] (resolve (f a b c d))))))))))))
 
@@ -70,7 +70,7 @@
            (fn [a] (-fork b reject
                           (fn [b]
                             (-fork c reject
-                                   (fn [d]
+                                   (fn [c]
                                      (-fork d reject
                                             (fn [d]
                                               (-fork (apply m/fmap
